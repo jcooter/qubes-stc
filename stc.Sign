@@ -1,0 +1,41 @@
+#!/usr/bin/sh
+
+function error_invalid {
+  zenity --error --no-wrap --text "Invalid Stellar Transaction" 2>/dev/null </dev/null >/dev/null
+  exit 1
+}
+
+function error_unknown {
+  zenity --error --no-wrap --text "An unknown error has occurred" 2>/dev/null </dev/null >/dev/null
+  exit 1
+}
+
+key="$1"
+if [ -z "$key" ]; then
+  key="$QREXEC_REMOTE_DOMAIN"
+fi
+
+if [ ! -f /home/user/${key}.gpg ]; then
+  zenity --error --no-wrap --text "Key \"${key}\" does not exist" 2>/dev/null </dev/null >/dev/null
+  exit 1
+fi
+
+if ! mount | grep -q $STCDIR/keys; then
+  error_unknown
+fi
+
+if [ ! -f /home/user/.stc/keys/${key} ]; then
+  gpg -o /home/user/.stc/keys/${key} -qd /home/user/${key}.gpg </dev/null >/dev/null || error_unknown
+fi
+
+echo $USER | /etc/qubes-rpc/qubes.WaitForSession >/dev/null 2>/dev/null
+
+mkdir -p ${STCDIR}/$(date +%Y/%m/%d)
+file=${STCDIR}/$(date +%Y/%m/%d/%s).txrep
+stc -net=main -o $file - || error_invalid
+msg_text="Do you want to allow VM '$QREXEC_REMOTE_DOMAIN' to sign the following transaction:"
+msg_text="$msg_text\nSigning Account: $(stc -pub ${key})"
+msg_text="$msg_text\n$(stc -net=main $file)"
+zenity --question --no-wrap --text "$msg_text" 2>/dev/null </dev/null >/dev/null || exit 1
+
+stc -net=main -key vault -sign -c $file || error_unknown
