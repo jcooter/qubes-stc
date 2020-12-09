@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# This script will be executed at every VM startup, you can place your own
+# custom commands here. This includes overriding some configuration in /etc,
+# starting services etc.
+
+sudo mount -t ramfs -o size=4m -o mode=0777 ramfs /home/user/.stc/keys
