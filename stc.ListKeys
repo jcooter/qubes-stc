@@ -1,0 +1,32 @@
+#!/usr/bin/sh
+declare -A full_access_vms=( 
+ [dom0]=1 [stellar-node]=1
+)
+
+[[ ! -z "$STCDIR" ]] || STCDIR=$HOME/.config/stc
+
+function error_unknown {
+  zenity --error --no-wrap --text "An unknown error has occurred" 2>/dev/null </dev/null >/dev/null
+  exit 1
+}
+
+if [ -n "${full_access_vms[$QREXEC_REMOTE_DOMAIN]}" ] || [ -z "$QREXEC_REMOTE_DOMAIN" ]; then
+  keys=$(cd $HOME; ls -1 *.pub | cut -d. -f1)
+else
+  keys=$(cd $HOME; getfattr -n user.qube_access.$QREXEC_REMOTE_DOMAIN *.pub 2>/dev/null | grep .pub | awk '{ print $3 }' | cut -d. -f1)
+fi
+
+json="[]"
+for key in $keys; do
+  public_key=$(cat $HOME/$key.pub)
+  display_name=$(getfattr --only-values -n user.display_name $key.pub 2>/dev/null || echo -n $key)
+  [ -f $STCDIR/keys/$key ] && decrypted="true" || decrypted="false"
+  nets=$(getfattr --match="user.stellar_.*net" $HOME/$key.pub 2>/dev/null | grep user.stellar | cut -d_ -f2 | jq -c -M --null-input --raw-input '[inputs]')
+  json=$(echo $json | jq --arg name ${key} \
+    --arg public_key ${public_key} \
+    --arg decrypted ${decrypted} \
+    --arg display_name "${display_name}" \
+    --argjson nets ${nets} \
+    '. += [{"name": $name, "display_name": $display_name, "public_key": $public_key, "decrypted": $decrypted, "nets": $nets}]')
+done
+echo $json
