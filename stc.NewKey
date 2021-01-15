@@ -1,0 +1,32 @@
+#!/usr/bin/sh
+
+[[ ! -z "$STCDIR" ]] || STCDIR=$HOME/.config/stc
+
+keypair=$(stc -keygen)
+keypair_name=$1
+function error_unknown {
+  zenity --error --no-wrap --text "An unknown error has occurred" 2>/dev/null </dev/null >/dev/null
+  exit 1
+}
+
+if [ -z "$keypair_name" ]; then
+  keypair_name="$QREXEC_REMOTE_DOMAIN"
+fi
+
+if [ -f /home/user/${keypair_name}.gpg ]; then
+  zenity --error --no-wrap --text "Key \"${keypair_name}\" already exists" 2>/dev/null </dev/null >/dev/null
+  exit 1
+fi
+
+if ! mount | grep -q ${STCDIR}/keys; then
+  error_unknown
+fi
+
+secret_key=$(echo $keypair | awk '{ print $1 }')
+public_key=$(echo $keypair | awk '{ print $2 }')
+
+echo $secret_key > $STCDIR/keys/$keypair_name
+echo $public_key > $keypair_name.pub
+setfattr -n user.qube_access.$QREXEC_REMOTE_DOMAIN $keypair_name.pub
+
+gpg -c -o /home/user/$keypair_name.gpg $STCDIR/keys/$keypair_name
